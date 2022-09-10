@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.jquery.com/jquery-3.6.1.min.js"
+        integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ=" crossorigin="anonymous"></script>
+    <title>Create Contact</title>
+</head>
+
+<body>
+    <form id="contact_input_form">
+        <div>
+            <b>Name</b>
+            <input type="text" autocomplete="false" id="inp_name" required>
+        </div>
+        <div>
+            <div>
+                <b>Phone Number:</b> <input type="tel" id="inp_phone_number" />
+                <button id="btn_add_phone_number">Add</button>
+            </div>
+            <button id="clear_all_phone_numbers">Clear</button>
+            <ol id="phone_numbers">
+
+            </ol>
+        </div>
+        <input type="submit" value="Save">
+    </form>
+    <script>
+
+        var phone_numbers = [];
+
+        function getEditContactIdOrNull() {
+            const segments = new URL($(location).prop('href')).pathname.split('/');
+            const contactid = segments.pop() || segments.pop(); // Handle potential trailing slash
+            if (!contactid || 'edit' == contactid || 'create' == contactid) return null;
+            return contactid;
+        }
+
+        function appendPhoneNumber(phonenumber) {
+            let html = `<li id="${phonenumber}">${phonenumber} <button>Remove</button></li>`;
+            $("#phone_numbers").append($(html));
+            $(`#${phonenumber}`).click((e) => {
+                e.preventDefault();
+                removePhoneNumber(phonenumber);
+            });
+            phone_numbers.push(phonenumber);
+        }
+
+        function removePhoneNumber(phonenumber) {
+            $("#phone_numbers").children().remove(`#${phonenumber}`);
+            phone_numbers.splice(phone_numbers.indexOf(phonenumber),1);
+        }
+
+        function cleanForm() {
+            $('#inp_name').val('');
+            $('#phone_numbers').children().remove();
+            phone_numbers = [];
+        }
+
+        $(document).ready(() => {
+
+            let contact_id = getEditContactIdOrNull();
+            if (contact_id) {
+                $('title').text('Edit Contact');
+                $.ajax(`http://localhost/api/v1/contact/${contact_id}`)
+                .done((data,textStatus,xhr) => {
+                    if (xhr.status == 200) {
+                        let contact = JSON.parse(data);
+                        $("#inp_name").val(contact.name);
+                        contact.phone_numbers.forEach((phone) => {
+                            appendPhoneNumber(phone);
+                        });
+                    }
+                });
+            }
+            else {
+                $('title').text('Create Contact');
+            }
+
+            $("#btn_add_phone_number").click((e) => {
+                e.preventDefault();
+                let elm = $("#inp_phone_number");
+                let phonenumber = elm.val();
+                if (phonenumber) appendPhoneNumber(phonenumber);
+                elm.val('');
+            });
+
+            $("#clear_all_phone_numbers").click((e) => {
+                e.preventDefault();
+                $("#phone_numbers").children().remove();
+                phone_numbers = [];
+            })
+
+            $("#contact_input_form").submit((e) => {
+                e.preventDefault();
+                console.log('phone numbers: '+phone_numbers);
+                if (phone_numbers.length == 0) {
+                    alert('add atleast one phone number');
+                    return;
+                }
+
+                let name = $("#inp_name").val();
+                console.log('name: ' + name + ' phone_numbers: ' + phone_numbers);
+
+                let url = contact_id ? `http://localhost/api/v1/contact/${contact_id}` : 'http://localhost/api/v1/contact' ;
+                let method = contact_id ? 'PUT' : 'POST';
+                let data = {name,phone_numbers};
+
+                $.ajax({
+                    url,
+                    method,
+                    data: JSON.stringify(data),
+                    processData: false,
+                    contentType: 'application/json',
+                }).done((data, textStatus, xhr) => {
+                    if (xhr.status == 200) {
+                        alert('contact saved');
+                        cleanForm();
+                    }
+                    else if (xhr.status == 500) {
+                        alert('Contact not saved, please try again');
+                    }
+                });
+            })
+        })
+    </script>
+</body>
+
+</html>

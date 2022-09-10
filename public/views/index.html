@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.jquery.com/jquery-3.6.1.min.js"
+        integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ=" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"
+        integrity="sha384-7EyYLQZgWBi67fBtVxw60/OWl1kjsfrPFcaU0pp0nAh+i8FD068QogUvg85Ewy1k"
+        crossorigin="anonymous"></script>
+    <title>Contact List</title>
+</head>
+
+<body>
+    <a href="/create" target="_blank">Create Contact</a>
+    <div id="contacts">
+
+    </div>
+    <script>
+
+
+        function createContactView({ contact_id, name, phone_numbers }) {
+            let html = `<div id="${contact_id}"><p><b>${name}</b>`
+            html += `<a target="_blank" href="/edit/${contact_id}">Edit</a>|<a id="${contact_id}" href="">Delete</a></p><ul>`;
+            phone_numbers.forEach(phone => {
+                html += `<li>${phone}</li>`;
+            });
+            html += `</ul></div>`;
+            return html;
+        }
+
+        function appendContact({ contact_id, name, phone_numbers }) {
+            let html = createContactView({ contact_id, name, phone_numbers });
+            html += `</ul></div>`;
+            $('#contacts').append($(html));
+            $(`a[id="${contact_id}"]`).click(function (e) {
+                e.preventDefault();
+                console.log('delete: ' + $(this).attr('id'));
+                $.ajax({
+                    url: `http://localhost/api/v1/contacts`,
+                    method: 'DELETE',
+                    contentType: 'application/json',
+                    processData: false,
+                    data: JSON.stringify({ 'contactids': [contact_id] }),
+                })
+            });
+        }
+
+        function removeContacts(contactids) {
+            const allcontacts = $("#contacts").children();
+            contactids.forEach((id) => {
+                allcontacts.remove(`#${id}`);
+            });
+        }
+
+        function updateContact(contact) {
+            let contactid = contact.contact_id;
+            let elm = $(`#${contactid}`);
+            elm.children().remove();
+            elm.append($(createContactView(contact)));
+        }
+
+        $(document).ready(() => {
+            $.ajax({
+                url: 'http://localhost/api/v1/contacts',
+                method: 'GET',
+            }).done((data, textStatus, xhr) => {
+                if (xhr.status == '200') {
+                    let res = JSON.parse(data);
+                    let contacts = res.contacts;
+                    contacts.forEach((contact) => {
+                        appendContact(contact)
+                    });
+                }
+            });
+        });
+
+        const socket = io();
+
+        socket.on('CREATE', (data) => {
+            let contact_id = JSON.parse(data).contact_id;
+            $.ajax(`http://localhost/api/v1/contact/${contact_id}`).done((xdata, tStatus, xhr) => {
+                if (xhr.status == 200) {
+                    appendContact(JSON.parse(xdata));
+                }
+            });
+        });
+
+        socket.on('UPDATE', (data) => {
+            let contact_id = JSON.parse(data).contact_id;
+            $.ajax(`http://localhost/api/v1/contact/${contact_id}`).done((xdata, tStatus, xhr) => {
+                if (xhr.status == 200) {
+                    updateContact(JSON.parse(xdata));
+                }
+            });
+        });
+
+        socket.on("DELETE", (data) => {
+            let contactids = JSON.parse(data).contactids;
+            removeContacts(contactids);
+        });
+    </script>
+</body>
+
+</html>
